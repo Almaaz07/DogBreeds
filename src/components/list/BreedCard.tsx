@@ -102,17 +102,6 @@ export const BreedCardComponent: React.FC<Props> = ({
           >
             {breed.attributes.name}
           </Text>
-          <TouchableOpacity
-            onPress={handleFavPress}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            style={styles.favoriteButton}
-          >
-            <Heart
-              size={18}
-              color={isFavorite ? theme.danger : theme.textMuted}
-              fill={isFavorite ? theme.danger : 'none'}
-            />
-          </TouchableOpacity>
         </View>
 
         <View style={styles.metaRow}>

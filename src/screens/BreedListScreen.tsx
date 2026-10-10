@@ -92,7 +92,7 @@ export const BreedListScreen: React.FC = () => {
     return count;
   }, [filters]);
 
-  const totalCount = totalRecords || 283;
+  const totalCount = totalRecords;
 
   const handleBreedPress = useCallback(
     (breedId: string) => {
