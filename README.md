@@ -33,14 +33,14 @@ npm test
 
 Dog Explorer implements an offline-first, unidirectional data flow architecture designed for zero latency and continuous availability regardless of network stability. Local persistence acts as the single source of truth for all view renders, while Redux Toolkit async thunks silently synchronize updates from the Dog API v2 endpoints.
 
-The application leverages a normalized state cache (mapping breeds and groups by unique identifiers) managed by Redux Toolkit and persisted to AsyncStorage. When the application launches, cached data is hydrated in less than 300ms, enabling instant interactivity.
+The application leverages a normalized state cache (mapping breeds and groups by unique identifiers) managed by Redux Toolkit and persisted to a local SQLite database (`react-native-sqlite-storage`). When the application launches, cached data is hydrated in less than 300ms, enabling instant interactivity.
 
 When connectivity changes, an integrated network listener automatically dispatches background synchronization with exponential backoff retry logic. If synchronization encounters a transient failure, existing cached data remains fully accessible while a non-intrusive status banner informs the user.
 
 ```mermaid
 flowchart LR
     API[Dog API v2] -->|Paginated Fetch & Backoff Retry| ReduxThunk[Redux Async Thunks]
-    ReduxThunk -->|Normalize & Save| Cache[(Local Storage)]
+    ReduxThunk -->|Normalize & Save| Cache[(SQLite DB)]
     Cache -->|Hydrate| Store[Redux Toolkit Store]
     Store -->|Typed Selectors & Filter| UI[React Native UI]
 ```
@@ -52,11 +52,11 @@ flowchart LR
 ### 1. State Management: Redux Toolkit (RTK)
 - **Rationale:** Standardized state mutations via immutable reducers, explicit async thunk lifecycles (`pending`, `fulfilled`, `rejected`) for network sync and storage hydration, and strongly typed `useAppDispatch` / `useAppSelector` hooks. i also can use the context api but for the scaling the redux toolkit is the best option.
 
-### 2. Local Database: AsyncStorage
-- **Rationale:** The entire 283-breed catalog serialized is ~380KB. In-memory indexing combined with atomic AsyncStorage caching provides sub-millisecond query performance and zero build/migration complexity.
+### 2. Local Database: SQLite Database
+- **Rationale:** Fine-grained row insertion and deletion prevents high peak memory allocations caused by `JSON.stringify` / `JSON.parse` cycles on large payloads. Relational tables for `breeds`, `breed_groups`, `favorites`, `app_metadata`, and `image_cache` ensure minimal RAM consumption and fast startup hydration.
 
 ### 3. Offline Sync Strategy
-- **Mechanism:** Initial app launch displays cached data immediately. A NetInfo listener detects when the device comes back online and triggers background sync. Transient network drops retry up to 3 times with exponential backoff (600ms, 1200ms, 2400ms).
+- **Mechanism:** Initial app launch displays cached data immediately from SQLite. A NetInfo listener detects when the device comes back online and triggers background sync. Transient network drops retry up to 3 times with exponential backoff (600ms, 1200ms, 2400ms).
 
 ---
 
@@ -72,7 +72,7 @@ flowchart LR
 ### Bundle Size Breakdown
 - **React Native Core & Runtime:** ~780 KB
 - **Navigation Stack:** ~195 KB
-- **Redux Toolkit & AsyncStorage:** ~85 KB
+- **Redux Toolkit & SQLite:** ~85 KB
 - **NetInfo & Network Utilities:** ~22 KB
 - **App Source & Theme Tokens:** ~375 KB
 - **Total:** **1.45 MB**

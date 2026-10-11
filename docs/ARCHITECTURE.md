@@ -9,7 +9,7 @@ Dog Explorer is an offline-first React Native mobile application engineered for 
 flowchart TD
     API[Dog API v2 Endpoints] -->|Fetch with Retry & Exponential Backoff| APILayer[API Client Layer]
     APILayer -->|Paginated Batch Fetch & Merge| ReduxThunk[Redux Toolkit Async Thunks]
-    ReduxThunk -->|Normalized JSON| LocalStorage[(AsyncStorage Persistence)]
+    ReduxThunk -->|Indexed SQL Records| LocalStorage[(SQLite Database Persistence)]
     LocalStorage -->|Rehydrate on Launch| ReduxStore[Redux Toolkit Store]
     NetInfo[NetInfo Connectivity Listener] -->|Network Reconnected| ReduxThunk
     ReduxStore -->|Typed Selectors & Filter| VM[Breed List & Detail Views]
@@ -25,7 +25,7 @@ flowchart TD
 
 ### 2. State & Persistence Layer (`src/store/` & `src/storage/`)
 - Redux Toolkit (`configureStore`, `createSlice`, `createAsyncThunk`) manages normalized application state.
-- Persistent cache backing via AsyncStorage.
+- Persistent cache backing via native SQLite database (`@op-engineering/op-sqlite`).
 - Instant app rehydration upon launch (<300ms) with zero layout shifts.
 - Seamless sync on network recovery monitored by `@react-native-community/netinfo`.
 - Tiered image cache index tracking access times and memory footprints under a 50MB disk budget.

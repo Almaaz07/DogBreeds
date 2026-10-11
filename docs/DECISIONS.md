@@ -13,15 +13,15 @@ Options considered: **Redux Toolkit (RTK)**, **Zustand**, **Jotai**, and **Conte
 
 ---
 
-## 2. Local Persistence: AsyncStorage
+## 2. Local Persistence: SQLite Database
 
 ### Context & Alternatives
-Options considered: **AsyncStorage**, **SQLite**, and **WatermelonDB**.
+Options considered: **SQLite** (`react-native-sqlite-storage`), **AsyncStorage**, and **WatermelonDB**.
 
 ### Rationale
-- **Dataset Dimension:** The Dog API contains 283 records with a total serialized payload size of ~380KB.
-- **Access Pattern:** The application benefits most from loading the entire normalized catalog into memory on startup and performing lightning-fast in-memory filtering and grouping rather than repeatedly querying an indexed relational database for every filter permutation.
-- **Complexity vs Reliability:** AsyncStorage provides zero native build dependencies or migration overhead while meeting the sub-300ms time-to-interactive requirement for 380KB payloads.
+- **Fine-Grained Row Operations & Low RAM Footprint:** Unlike key-value stores that require serializing/deserializing entire JSON blobs into JavaScript heap memory on every write, SQLite uses native C/C++ engine storage with indexed tables (`breeds`, `breed_groups`, `favorites`, `app_metadata`, `image_cache`).
+- **Targeted Batch & Single-Row Updates:** When fetching next pages or toggling single favorites, SQLite updates specific rows (`INSERT OR REPLACE` / `DELETE`) rather than rewriting large JSON structures to disk.
+- **Image Cache & Index Management:** Image access logs and eviction thresholds are managed through indexed SQLite queries, minimizing garbage collection pressure.
 
 ---
 
@@ -55,7 +55,7 @@ Each dog breed contains up to 9 images with thumbnail, medium, and large variant
 
 ## 5. Offline Sync Strategy & Network Resilience
 
-- **Cold Start:** App reads from local AsyncStorage immediately; UI renders cached state without waiting for network responses.
+- **Cold Start:** App reads from local SQLite database immediately; UI renders cached state without waiting for network responses.
 - **Background Refresh:** Once initialized, NetInfo verifies reachability and checks for upstream updates via Redux async thunks.
 - **Exponential Backoff:** Transient network drops retry up to 3 times with exponential backoff (600ms, 1200ms, 2400ms).
 - **Graceful Error Handling:** If network sync fails, existing cached data remains visible while an `ErrorBanner` informs the user of sync status with a manual retry option.

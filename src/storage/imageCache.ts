@@ -1,14 +1,12 @@
 import { DogImage } from '../types';
-import { loadFromStorage, saveToStorage, STORAGE_KEYS } from './asyncStorage';
+import {
+  CachedImageEntry,
+  evictOldestImageCacheEntries,
+  loadImageCacheIndex,
+  saveImageCacheEntry,
+} from './database';
 
 export type ImageVariant = 'thumb' | 'medium' | 'large' | 'original';
-
-interface CachedImageEntry {
-  uri: string;
-  variant: ImageVariant;
-  estimatedBytes: number;
-  lastAccessed: number;
-}
 
 interface ImageCacheIndex {
   entries: Record<string, CachedImageEntry>;
@@ -32,16 +30,17 @@ class ImageCacheManager {
 
   async init(): Promise<void> {
     if (this.initialized) return;
-    const loaded = await loadFromStorage<ImageCacheIndex>(
-      STORAGE_KEYS.IMAGE_CACHE_INDEX
-    );
+    const loaded = await loadImageCacheIndex();
     if (loaded && loaded.entries) {
       this.index = loaded;
     }
     this.initialized = true;
   }
 
-  getOptimalImageUrl(image: DogImage | undefined, requestedVariant: ImageVariant): string | undefined {
+  getOptimalImageUrl(
+    image: DogImage | undefined,
+    requestedVariant: ImageVariant
+  ): string | undefined {
     if (!image) return undefined;
 
     switch (requestedVariant) {
@@ -65,15 +64,17 @@ class ImageCacheManager {
     const now = Date.now();
     const est = ESTIMATED_SIZES[variant] || 50 * 1024;
 
+    const entry: CachedImageEntry = {
+      uri,
+      variant,
+      estimatedBytes: est,
+      lastAccessed: now,
+    };
+
     if (this.index.entries[uri]) {
       this.index.entries[uri].lastAccessed = now;
     } else {
-      this.index.entries[uri] = {
-        uri,
-        variant,
-        estimatedBytes: est,
-        lastAccessed: now,
-      };
+      this.index.entries[uri] = entry;
       this.index.totalEstimatedBytes += est;
     }
 
@@ -81,7 +82,7 @@ class ImageCacheManager {
       this.evictOldest();
     }
 
-    await saveToStorage(STORAGE_KEYS.IMAGE_CACHE_INDEX, this.index);
+    await saveImageCacheEntry(entry);
   }
 
   private evictOldest(): void {
@@ -95,12 +96,18 @@ class ImageCacheManager {
       delete this.index.entries[item.uri];
       this.index.totalEstimatedBytes -= item.estimatedBytes;
     }
+
+    evictOldestImageCacheEntries(target, this.index.totalEstimatedBytes).catch(
+      () => {}
+    );
   }
 
   getCacheStats(): { count: number; totalMB: number } {
     return {
       count: Object.keys(this.index.entries).length,
-      totalMB: Number((this.index.totalEstimatedBytes / (1024 * 1024)).toFixed(2)),
+      totalMB: Number(
+        (this.index.totalEstimatedBytes / (1024 * 1024)).toFixed(2)
+      ),
     };
   }
 }

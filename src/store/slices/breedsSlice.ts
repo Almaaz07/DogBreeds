@@ -5,10 +5,17 @@ import {
   fetchBreedsPage,
 } from '../../api/client';
 import {
-  loadFromStorage,
-  saveToStorage,
-  STORAGE_KEYS,
-} from '../../storage/asyncStorage';
+  getMetadata,
+  loadAllBreeds,
+  loadAllFavorites,
+  loadAllGroups,
+  METADATA_KEYS,
+  saveBreeds,
+  saveFavorite,
+  saveGroups,
+  saveSingleBreed,
+  setMetadata,
+} from '../../storage/database';
 import { Breed, BreedGroup, FilterState } from '../../types';
 
 export const initialFilterState: FilterState = {
@@ -69,10 +76,10 @@ export const initializeStore = createAsyncThunk(
   async () => {
     const [cachedBreeds, cachedGroups, cachedSync, cachedFavs] =
       await Promise.all([
-        loadFromStorage<Record<string, Breed>>(STORAGE_KEYS.BREEDS),
-        loadFromStorage<Record<string, BreedGroup>>(STORAGE_KEYS.GROUPS),
-        loadFromStorage<number>(STORAGE_KEYS.LAST_SYNC),
-        loadFromStorage<Record<string, boolean>>(STORAGE_KEYS.FAVORITES),
+        loadAllBreeds(),
+        loadAllGroups(),
+        getMetadata<number>(METADATA_KEYS.LAST_SYNC),
+        loadAllFavorites(),
       ]);
 
     const breedsById = cachedBreeds || {};
@@ -137,9 +144,9 @@ export const syncInitialData = createAsyncThunk<
     const now = Date.now();
 
     await Promise.all([
-      saveToStorage(STORAGE_KEYS.BREEDS, newBreedsById),
-      saveToStorage(STORAGE_KEYS.GROUPS, newGroupsById),
-      saveToStorage(STORAGE_KEYS.LAST_SYNC, now),
+      saveBreeds(newBreedsById),
+      saveGroups(newGroupsById),
+      setMetadata(METADATA_KEYS.LAST_SYNC, now),
     ]);
 
     return {
@@ -176,12 +183,9 @@ export const fetchNextPage = createAsyncThunk<
 
     try {
       const result = await fetchBreedsPage(nextPage);
-      const updatedBreeds = { ...state.breedsById };
-      for (const breed of result.breeds) {
-        updatedBreeds[breed.id] = breed;
-      }
 
-      await saveToStorage(STORAGE_KEYS.BREEDS, updatedBreeds);
+      // Persist only the newly received batch to SQLite
+      await saveBreeds(result.breeds);
 
       return {
         breeds: result.breeds,
@@ -211,14 +215,9 @@ export const fetchNextPage = createAsyncThunk<
 
 export const refreshBreed = createAsyncThunk(
   'breeds/refreshBreed',
-  async (breedId: string, { getState }) => {
+  async (breedId: string) => {
     const freshBreed = await fetchBreedById(breedId);
-    const state = (getState() as { breeds: BreedsState }).breeds;
-    const updatedBreeds = {
-      ...state.breedsById,
-      [breedId]: freshBreed,
-    };
-    await saveToStorage(STORAGE_KEYS.BREEDS, updatedBreeds);
+    await saveSingleBreed(freshBreed);
     return freshBreed;
   }
 );
@@ -227,13 +226,9 @@ export const toggleFavorite = createAsyncThunk(
   'breeds/toggleFavorite',
   async (breedId: string, { getState }) => {
     const state = (getState() as { breeds: BreedsState }).breeds;
-    const isFav = !!state.favorites[breedId];
-    const updated = {
-      ...state.favorites,
-      [breedId]: !isFav,
-    };
-    await saveToStorage(STORAGE_KEYS.FAVORITES, updated);
-    return { breedId, isFavorite: !isFav };
+    const isFav = !state.favorites[breedId];
+    await saveFavorite(breedId, isFav);
+    return { breedId, isFavorite: isFav };
   }
 );
 
